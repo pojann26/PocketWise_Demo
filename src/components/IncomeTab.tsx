@@ -181,11 +181,9 @@ export default function IncomeTab({ profile, transactions, onBackToDashboard }: 
         )}
       </div>
 
-      {/* Analytics Prediction Card (Matching user mockup reference) */}
+      {/* Analytics Prediction Card (Monthly Forecast representation) */}
       {(() => {
-        const predictionCategories = ['Kosan', 'Makan', 'Kopi', 'Hiburan', 'Transport'];
-
-        // Sum up debit transactions by category
+        // Calculate current month's variable vs fixed expenses
         const categoryDebits: Record<string, number> = {};
         transactions
           .filter((tx) => tx.type === 'debit')
@@ -193,92 +191,131 @@ export default function IncomeTab({ profile, transactions, onBackToDashboard }: 
             categoryDebits[tx.category] = (categoryDebits[tx.category] || 0) + tx.amount;
           });
 
-        // Extrapolate (June 1 to 12 is 12 days, so 30 days is 30/12 = 2.5 factor)
-        // Kosan is a fixed monthly expense (factor = 1.0)
-        // Other categories are variable (factor = 2.5)
-        const predictions = predictionCategories.map((cat) => {
-          const currentSum = categoryDebits[cat] || 0;
-          const factor = cat === 'Kosan' ? 1.0 : 2.5;
-          const predictedAmount = currentSum * factor;
+        // Elapsed days in current month (June 12, 2026 -> 12 elapsed days)
+        const elapsedDays = 12; 
+        const variableSum = (categoryDebits['Makan'] || 0) + 
+                            (categoryDebits['Kopi'] || 0) + 
+                            (categoryDebits['Hiburan'] || 0) + 
+                            (categoryDebits['Transport'] || 0) + 
+                            (categoryDebits['Lainnya'] || 0);
+
+        const fixedSum = categoryDebits['Kosan'] || 0; // kosan is fixed monthly
+
+        // Predicted spending for current month (extrapolated)
+        const variableProjected = variableSum * (30 / elapsedDays);
+        const totalProjected = fixedSum + variableProjected;
+
+        // Current month's spending percentage of monthly allowance (budget base = 2.000.000)
+        const allowance = profile.monthlyAllowance || 2000000;
+        const currentMonthPercent = Math.round((totalProjected / allowance) * 100) || 90;
+
+        // Generate 5 forecast months starting from current month (June 2026)
+        const baseDate = new Date('2026-06-12');
+        const monthOffsets = [0, -8, 12, -15, -5]; // Jun (current), Jul (hemat), Agt (boros), Sep (hemat), Okt (normal)
+
+        const forecastData = Array.from({ length: 5 }).map((_, index) => {
+          const d = new Date(baseDate);
+          d.setMonth(baseDate.getMonth() + index);
+          
+          const offset = monthOffsets[index];
+          let projectedPercent = currentMonthPercent + offset;
+          
+          // Clamp percentage for display aesthetics
+          projectedPercent = Math.max(15, Math.min(150, projectedPercent));
+          const isSaving = projectedPercent <= 100; // <= 100% of allowance is hemat (Green), > 100% is boros (Red)
+
           return {
-            category: cat,
-            amount: predictedAmount,
+            name: d.toLocaleDateString('id-ID', { month: 'short' }), // "Jun", "Jul", dll
+            percentage: projectedPercent,
+            isSaving,
           };
         });
 
-        const totalPredicted = predictions.reduce((sum, item) => sum + item.amount, 0);
-
-        // Map predictions to percentages of total predicted spend
-        const predictionData = predictions.map((item) => {
-          const percentage = totalPredicted > 0 ? (item.amount / totalPredicted) * 100 : 0;
-          return {
-            ...item,
-            percentage: Math.round(percentage),
-          };
-        });
-
-        // Find max predicted amount to scale bar heights
-        const maxPredictedAmount = Math.max(...predictions.map((item) => item.amount), 1);
-        
-        // Find highest category item to mark as active
-        const highestCategory = predictions.reduce(
-          (maxItem, current) => (current.amount > maxItem.amount ? current : maxItem),
-          predictions[0] || { category: '', amount: 0 }
-        ).category;
+        // Find max percentage to scale visual heights
+        const maxPercent = Math.max(...forecastData.map((d) => d.percentage), 100);
 
         return (
           <div className="bg-[#EBF7EE]/40 border border-emerald-100/30 rounded-3xl p-5 shadow-sm space-y-4">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <h3 className="text-xs font-bold text-neutral-800">Analytics</h3>
+                <h3 className="text-xs font-bold text-neutral-800">Prediksi Pengeluaran Bulanan</h3>
               </div>
-              <button className="text-[10px] text-neutral-400 font-bold hover:text-neutral-600 transition-colors">
-                See All Analytics
-              </button>
+              <div className="flex items-center gap-2 text-[9px] font-bold">
+                <span className="flex items-center gap-1 text-emerald-700">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Hemat
+                </span>
+                <span className="flex items-center gap-1 text-red-600">
+                  <span className="w-2 h-2 rounded-full bg-red-500"></span> Boros
+                </span>
+              </div>
             </div>
 
-            <div className="grid grid-cols-5 gap-2 pt-1">
-              {predictionData.map((item) => {
-                const isActive = item.category === highestCategory;
-                const heightPercent = Math.max((item.amount / maxPredictedAmount) * 100, 15); // min 15% height
+            <div className="grid grid-cols-5 gap-2.5 pt-1">
+              {forecastData.map((item, index) => {
+                const isActive = index === 0; // Current month (Juni) stands out as solid
+                const heightPercent = Math.max((item.percentage / maxPercent) * 100, 15);
 
                 return (
-                  <div key={item.category} className="flex flex-col items-center gap-2">
+                  <div key={item.name} className="flex flex-col items-center gap-2">
                     {/* Tall rounded pill track */}
                     <div className="w-full bg-white rounded-2xl border border-neutral-100/50 h-32 flex flex-col justify-end overflow-hidden p-1 relative shadow-inner">
                       
                       {/* Fill Bar */}
                       {isActive ? (
-                        /* Solid Green Gradient Fill for active category */
+                        /* Solid Gradient Fill for current month */
                         <div
-                          className="w-full rounded-xl bg-gradient-to-t from-emerald-950 via-emerald-800 to-lime-500 flex items-center justify-center transition-all duration-500 shadow-sm"
-                          style={{ height: `${heightPercent}%` }}
-                        >
-                          <span className="text-[9px] font-black text-white leading-none">
-                            {item.percentage}%
-                          </span>
-                        </div>
-                      ) : (
-                        /* Diagonal Striped Fill for other categories */
-                        <div
-                          className="w-full rounded-xl border border-emerald-500/10 transition-all duration-500"
+                          className="w-full rounded-xl transition-all duration-500 shadow-sm"
                           style={{
                             height: `${heightPercent}%`,
-                            backgroundColor: 'rgba(16, 185, 129, 0.03)',
-                            backgroundImage: 'repeating-linear-gradient(-45deg, rgba(16, 185, 129, 0.15) 0px, rgba(16, 185, 129, 0.15) 2px, transparent 2px, transparent 8px)',
+                            background: item.isSaving
+                              ? 'linear-gradient(to top, #065f46, #059669, #34d399)'
+                              : 'linear-gradient(to top, #991b1b, #dc2626, #f87171)'
+                          }}
+                        />
+                      ) : (
+                        /* Striped Hatching Fill for future predicted months */
+                        <div
+                          className="w-full rounded-xl border border-neutral-100/30 transition-all duration-500"
+                          style={{
+                            height: `${heightPercent}%`,
+                            backgroundColor: item.isSaving ? 'rgba(16, 185, 129, 0.02)' : 'rgba(239, 68, 68, 0.02)',
+                            backgroundImage: item.isSaving
+                              ? 'repeating-linear-gradient(-45deg, rgba(16, 185, 129, 0.18) 0px, rgba(16, 185, 129, 0.18) 2px, transparent 2px, transparent 8px)'
+                              : 'repeating-linear-gradient(-45deg, rgba(239, 68, 68, 0.18) 0px, rgba(239, 68, 68, 0.18) 2px, transparent 2px, transparent 8px)',
                           }}
                         />
                       )}
+
+                      {/* Percentage Overlay (Centering text in the track context for absolute readability) */}
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                        <span className={`text-[9px] font-black ${
+                          isActive 
+                            ? 'text-white drop-shadow-sm' 
+                            : item.isSaving 
+                              ? 'text-emerald-700 font-bold' 
+                              : 'text-red-600 font-bold'
+                        }`}>
+                          {item.percentage}%
+                        </span>
+                      </div>
                     </div>
-                    {/* Label */}
-                    <span className="text-[8px] font-bold text-neutral-500 tracking-tight text-center leading-tight truncate w-full">
-                      {item.category}
+                    
+                    {/* Label with dynamic active bullet indicator */}
+                    <span className={`text-[9px] font-extrabold flex items-center gap-0.5 ${
+                      isActive ? 'text-neutral-900 font-black' : 'text-neutral-400'
+                    }`}>
+                      {item.name}
+                      {isActive && <span className="w-1 h-1 rounded-full bg-neutral-950"></span>}
                     </span>
                   </div>
                 );
               })}
             </div>
+            
+            <p className="text-[9px] text-neutral-500 leading-relaxed italic text-center pt-1 border-t border-neutral-100/80">
+              *Prediksi dalam persen terhadap uang saku bulanan kamu ({formatCompact(allowance)}).
+            </p>
           </div>
         );
       })()}
