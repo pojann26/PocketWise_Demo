@@ -10,7 +10,7 @@ export default function MobileFrame({ children }: MobileFrameProps) {
   return (
     <div className="min-h-screen bg-neutral-900 flex items-center justify-center p-0 sm:p-4 text-neutral-800 antialiased selection:bg-lime-400 selection:text-neutral-900">
       {/* Outer Phone Mockup (rendered as a card with bezel on larger displays) */}
-      <div className="relative w-full h-screen sm:w-[390px] sm:h-[844px] bg-black sm:rounded-[55px] sm:border-[12px] sm:border-neutral-800 sm:shadow-2xl sm:shadow-black/70 overflow-hidden flex flex-col transition-all duration-300">
+      <div className="relative w-full h-[100dvh] sm:w-[390px] sm:h-[844px] bg-black sm:rounded-[55px] sm:border-[12px] sm:border-neutral-800 sm:shadow-2xl sm:shadow-black/70 overflow-hidden flex flex-col transition-all duration-300">
         
         {/* iOS Dynamic Island notch (desktop/tablet mockup only) */}
         <div className="hidden sm:block absolute top-3.5 left-1/2 -translate-x-1/2 w-[110px] h-[30px] bg-black rounded-3xl z-50 pointer-events-none">

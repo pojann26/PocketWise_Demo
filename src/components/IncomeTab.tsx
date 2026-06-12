@@ -180,6 +180,108 @@ export default function IncomeTab({ profile, transactions, onBackToDashboard }: 
           </div>
         )}
       </div>
+
+      {/* Analytics Prediction Card (Matching user mockup reference) */}
+      {(() => {
+        const predictionCategories = ['Kosan', 'Makan', 'Kopi', 'Hiburan', 'Transport'];
+
+        // Sum up debit transactions by category
+        const categoryDebits: Record<string, number> = {};
+        transactions
+          .filter((tx) => tx.type === 'debit')
+          .forEach((tx) => {
+            categoryDebits[tx.category] = (categoryDebits[tx.category] || 0) + tx.amount;
+          });
+
+        // Extrapolate (June 1 to 12 is 12 days, so 30 days is 30/12 = 2.5 factor)
+        // Kosan is a fixed monthly expense (factor = 1.0)
+        // Other categories are variable (factor = 2.5)
+        const predictions = predictionCategories.map((cat) => {
+          const currentSum = categoryDebits[cat] || 0;
+          const factor = cat === 'Kosan' ? 1.0 : 2.5;
+          const predictedAmount = currentSum * factor;
+          return {
+            category: cat,
+            amount: predictedAmount,
+          };
+        });
+
+        const totalPredicted = predictions.reduce((sum, item) => sum + item.amount, 0);
+
+        // Map predictions to percentages of total predicted spend
+        const predictionData = predictions.map((item) => {
+          const percentage = totalPredicted > 0 ? (item.amount / totalPredicted) * 100 : 0;
+          return {
+            ...item,
+            percentage: Math.round(percentage),
+          };
+        });
+
+        // Find max predicted amount to scale bar heights
+        const maxPredictedAmount = Math.max(...predictions.map((item) => item.amount), 1);
+        
+        // Find highest category item to mark as active
+        const highestCategory = predictions.reduce(
+          (maxItem, current) => (current.amount > maxItem.amount ? current : maxItem),
+          predictions[0] || { category: '', amount: 0 }
+        ).category;
+
+        return (
+          <div className="bg-[#EBF7EE]/40 border border-emerald-100/30 rounded-3xl p-5 shadow-sm space-y-4">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <h3 className="text-xs font-bold text-neutral-800">Analytics</h3>
+              </div>
+              <button className="text-[10px] text-neutral-400 font-bold hover:text-neutral-600 transition-colors">
+                See All Analytics
+              </button>
+            </div>
+
+            <div className="grid grid-cols-5 gap-2 pt-1">
+              {predictionData.map((item) => {
+                const isActive = item.category === highestCategory;
+                const heightPercent = Math.max((item.amount / maxPredictedAmount) * 100, 15); // min 15% height
+
+                return (
+                  <div key={item.category} className="flex flex-col items-center gap-2">
+                    {/* Tall rounded pill track */}
+                    <div className="w-full bg-white rounded-2xl border border-neutral-100/50 h-32 flex flex-col justify-end overflow-hidden p-1 relative shadow-inner">
+                      
+                      {/* Fill Bar */}
+                      {isActive ? (
+                        /* Solid Green Gradient Fill for active category */
+                        <div
+                          className="w-full rounded-xl bg-gradient-to-t from-emerald-950 via-emerald-800 to-lime-500 flex items-center justify-center transition-all duration-500 shadow-sm"
+                          style={{ height: `${heightPercent}%` }}
+                        >
+                          <span className="text-[9px] font-black text-white leading-none">
+                            {item.percentage}%
+                          </span>
+                        </div>
+                      ) : (
+                        /* Diagonal Striped Fill for other categories */
+                        <div
+                          className="w-full rounded-xl border border-emerald-500/10 transition-all duration-500"
+                          style={{
+                            height: `${heightPercent}%`,
+                            backgroundColor: 'rgba(16, 185, 129, 0.03)',
+                            backgroundImage: 'repeating-linear-gradient(-45deg, rgba(16, 185, 129, 0.15) 0px, rgba(16, 185, 129, 0.15) 2px, transparent 2px, transparent 8px)',
+                          }}
+                        />
+                      )}
+                    </div>
+                    {/* Label */}
+                    <span className="text-[8px] font-bold text-neutral-500 tracking-tight text-center leading-tight truncate w-full">
+                      {item.category}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
